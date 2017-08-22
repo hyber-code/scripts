@@ -7,4 +7,4 @@ if [ ! -d $HOME/viper-workdir ]; then
     chmod a+xwr viper-workdir
 fi
 
-sudo docker run -d --rm -p 9090:9090 -v ~/viper-workdir:/home/nonroot/workdir remnux/viper
+sudo docker run --name viper -d --rm -p 9090:9090 -v ~/viper-workdir:/home/nonroot/workdir remnux/viper
