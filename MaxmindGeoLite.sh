@@ -45,3 +45,9 @@ URL="$BASEURL"
 URL+="$GEOLITEASNV6"
 wget -nc $URL
 gunzip -f GeoIPASNumv6.dat.gz
+
+# Put them at the right location
+sudo mv *.dat /usr/share/GeoIP
+
+# Clean up
+rm -Rf /tmp/Maxmind
