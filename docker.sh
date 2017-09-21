@@ -16,21 +16,41 @@ sudo apt-get install -y software-properties-common
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 
 # check fingerprint downloaded key
-# TODO: write a better test
-sudo apt-key fingerprint $KEYID
-echo $FINGERPRINT
+FPRINT=$(sudo apt-key fingerprint $KEYID | grep fingerprint | cut -d '=' -f 2 | cut -c 2-)
 
-# add docker repository to the system
-sudo add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-   $(lsb_release -cs) \
-   stable"
+A=$(echo $FPRINT | sed 's/ //g')
+B=$(echo $FINGERPRINT | sed 's/ //g')
 
-# update the repo
-sudo apt-get update
+if [ "$A" == "$B" ] ; then
+   echo "Fingerprint matched"
+   OS=$(lsb_release -d | cut -d ":" -f 2 | cut -d ' ' -f 2)
+   if [ "$OS" == "Mint" ] ; then
+        VERSION=$(lsb_release -c | cut -d ":" -f 2 | cut -f2 -s)
+        if [ "$VERSION" == "serena" ] ; then
+            sudo add-apt-repository \
+            "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial  stable"
+        else
+            echo "You have a version of Linux Mint unknown to the script, edit it."
+        fi
+   else
+        # add docker repository to the system
+        sudo add-apt-repository \
+        "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) \
+        stable"
+   fi
 
-# install docker-ce
-sudo apt-get install -y docker-ce
+   # update the repo
+   sudo apt-get update
+
+   # install docker-ce
+   sudo apt-get install -y docker-ce
+else 
+   echo "Fingerprints don't match"
+   echo $FPRINT
+   echo $FINGERPRINT
+fi
+
 
 # If you want Docker to run as a non-root user, you should consider adding
 # your user to the docker group like the command underneath but it is against
