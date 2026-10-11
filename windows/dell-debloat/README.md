@@ -97,7 +97,7 @@ The lists at the top of the script (the `CONFIG` section) control everything:
 
 - Version 1.1. Syntax-checked with PowerShell's parser. Name-matching logic tested on sample names.
 - Built from the output of read-only inventory scripts on a real Dell PC.
-- **First live run (one Dell Inspiron 16 Plus 7630, Windows 11):** the program uninstall, service removal, block list and folder moves worked. Two driver packages did not delete in v1.0 because the removal order clashed with the block list (the uninstall step needs a device install, which the block forbids). v1.1 removes the device entries first and deletes the package without `/uninstall`. The v1.1 driver step has not been run live yet.
+- **First live run (one Dell Inspiron 16 Plus 7630, Windows 11):** the program uninstall, service removal, block list and folder moves worked. Two driver packages did not delete in v1.0 because the removal order clashed with the block list (the uninstall step needs a device install, which the block forbids). v1.1 removes the device entries first and deletes the package without `/uninstall`. A second live run of v1.1 on the same PC removed both packages and all 12 checks passed (0 failures).
 - Still unproven: whether Windows Update tries to bring the Dell software back. Run `-Verify` after the next Windows Update.
 - Windows 11 only. Needs Administrator rights.
 
