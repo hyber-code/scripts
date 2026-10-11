@@ -120,7 +120,7 @@ function Do-Step([string]$What, [scriptblock]$Action) {
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-Log "Dell-Debloat  mode=$mode  started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+Log "Dell-Debloat v1.1  mode=$mode  started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
 # ============================================================ PC and Windows info
 Head '0. This PC'
@@ -199,8 +199,8 @@ function Run-Verify {
   Check (@($tk).Count -eq 0) 'No Dell scheduled tasks' ("Tasks present: " + (($tk | ForEach-Object { $_.TaskName }) -join '; ')) $true
   $dr = Get-TargetDrivers
   Check (@($dr).Count -eq 0) 'Dell software driver packages removed' ("Driver packages present: " + (($dr | ForEach-Object { $_.Driver }) -join '; '))
-  $present = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match 'DCSDDRIVER_COMPONENTS|DELLINSTRUMENTATION' -and $_.Status -ne 'Unknown' })
-  Check ($present.Count -eq 0) 'Dell software-component devices are not present' ("Devices present: " + (($present | ForEach-Object { $_.InstanceId }) -join '; '))
+  $present = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match 'DCSDDRIVER_COMPONENTS|DELLINSTRUMENTATION' -and $_.Status -eq 'OK' })
+  Check ($present.Count -eq 0) 'No Dell software-component device is active (an inactive, blocked entry is fine)' ("Active devices: " + (($present | ForEach-Object { $_.InstanceId }) -join '; '))
   $deny = Get-ItemProperty $DenyKey -ErrorAction SilentlyContinue
   $denyVals = @(); if ($deny) { $denyVals = @($deny.PSObject.Properties | Where-Object { $_.Name -match '^\d+$' } | ForEach-Object { $_.Value }) }
   $missingIds = @($BlockHardwareIds | Where-Object { $denyVals -notcontains $_ })
@@ -210,7 +210,7 @@ function Run-Verify {
   Check ($wu -ne 1) 'Windows Update driver delivery is NOT globally blocked' 'Windows Update drivers are globally excluded by a policy (not set by this script)'
   $wus = Get-Service wuauserv -ErrorAction SilentlyContinue
   Check ($wus -and $wus.StartType -ne 'Disabled') 'Windows Update service is not disabled' 'Windows Update service is disabled'
-  $bad = @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Error' })
+  $bad = @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Error' -and $_.InstanceId -notmatch 'DCSDDRIVER_COMPONENTS|DELLINSTRUMENTATION' })
   Check ($bad.Count -eq 0) 'No hardware devices report an error' ("Devices in error: " + (($bad | ForEach-Object { $_.FriendlyName }) -join '; ')) $true
 }
 
@@ -384,7 +384,17 @@ foreach ($d in @(Get-TargetDrivers)) {
     $dest = Join-Path $BackupDir ("driver_" + $d.Driver -replace '\.inf$', '')
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     $e = & pnputil.exe /export-driver $d.Driver $dest 2>&1 | Out-String
-    $o = & pnputil.exe /delete-driver $d.Driver /uninstall /force 2>&1 | Out-String
+    # 1) remove the device entries that use this package (this still works under the block list)
+    foreach ($dev in @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match 'DCSD|DELL' })) {
+      $inf = (Get-PnpDeviceProperty -InstanceId $dev.InstanceId -KeyName 'DEVPKEY_Device_DriverInfPath' -ErrorAction SilentlyContinue).Data
+      if ($inf -eq $d.Driver) {
+        $rm = & pnputil.exe /remove-device $dev.InstanceId 2>&1 | Out-String
+        Log ("          removed device entry {0}" -f $dev.InstanceId)
+        if ($LASTEXITCODE -eq 3010) { $script:RebootNeeded = $true }
+      }
+    }
+    # 2) delete the package itself. No /uninstall here: that needs a device install, which the block list forbids.
+    $o = & pnputil.exe /delete-driver $d.Driver /force 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { throw "pnputil said: $o" }
     if ($LASTEXITCODE -eq 3010) { $script:RebootNeeded = $true }
   } | Out-Null
